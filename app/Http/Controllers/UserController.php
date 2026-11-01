@@ -84,24 +84,27 @@ class UserController extends Controller
     //Show littlelink page. example => http://127.0.0.1:8000/+admin
     public function littlelink(request $request)
     {
-        if(isset($request->useif)){
-            $littlelink_name = User::select('littlelink_name')->where('id', $request->littlelink)->value('littlelink_name');
-            $id = $request->littlelink;
+        if (isset($request->useif)) {
+            if (!is_numeric($request->littlelink)) {
+                return abort(404);
+            }
+            $userinfo = User::select('id', 'name', 'littlelink_name', 'littlelink_description', 'theme', 'role', 'block')
+                ->where('id', (int) $request->littlelink)
+                ->first();
         } else {
-            $littlelink_name = $request->littlelink;
-            $id = User::select('id')->where('littlelink_name', $littlelink_name)->value('id');
+            $littlelink_name = (string) $request->littlelink;
+            $userinfo = User::select('id', 'name', 'littlelink_name', 'littlelink_description', 'theme', 'role', 'block')
+                ->where('littlelink_name', $littlelink_name)
+                ->first();
         }
 
-        if (empty($id)) {
+        if (!$userinfo || $userinfo->block == 'yes') {
             return abort(404);
         }
-     
-        $userinfo = User::select('id', 'name', 'littlelink_name', 'littlelink_description', 'theme', 'role', 'block')->where('id', $id)->first();
-        $information = User::select('name', 'littlelink_name', 'littlelink_description', 'theme')->where('id', $id)->get();
-        
-        if ($userinfo->block == 'yes') {
-            return abort(404);
-        }
+
+        $id = $userinfo->id;
+        $littlelink_name = $userinfo->littlelink_name;
+        $information = collect([$userinfo]);
         
         $links = DB::table('links')
         ->join('buttons', 'buttons.id', '=', 'links.button_id')
@@ -131,15 +134,17 @@ class UserController extends Controller
     //Show littlelink page as home page if set in config
     public function littlelinkhome(request $request)
     {
-        $littlelink_name = env('HOME_URL');
-        $id = User::select('id')->where('littlelink_name', $littlelink_name)->value('id');
+        $littlelink_name = (string) env('HOME_URL');
+        $userinfo = User::select('id', 'name', 'littlelink_name', 'littlelink_description', 'theme', 'role', 'block')
+            ->where('littlelink_name', $littlelink_name)
+            ->first();
 
-        if (empty($id)) {
+        if (!$userinfo) {
             return abort(404);
         }
-     
-        $userinfo = User::select('id', 'name', 'littlelink_name', 'littlelink_description', 'theme', 'role', 'block')->where('id', $id)->first();
-        $information = User::select('name', 'littlelink_name', 'littlelink_description', 'theme')->where('id', $id)->get();
+
+        $id = $userinfo->id;
+        $information = collect([$userinfo]);
         
         $links = DB::table('links')
         ->join('buttons', 'buttons.id', '=', 'links.button_id')
@@ -257,14 +262,20 @@ class UserController extends Controller
 
         // Step 5: User and Button Information
         $userId = Auth::user()->id;
-        $button = Button::where('name', $request->button)->first();
-        if ($button && empty($LinkTitle)) $LinkTitle = $button->alt;
+        if (!empty($request->button)) {
+            $button = $button ?? Button::where('name', $request->button)->first();
+            if ($button && empty($LinkTitle)) {
+                $LinkTitle = $button->alt;
+            }
+        }
 
         // Step 6: Prepare Link Data
         // (Handled by the included file)
 
         // Step 7: Save or Update Link
-        $OrigLink = Link::find($request->linkid);
+        $OrigLink = (is_numeric($request->linkid) && (int) $request->linkid > 0)
+            ? Link::find((int) $request->linkid)
+            : null;
         $linkColumns = Schema::getColumnListing('links'); // Get all column names of links table
         $filteredLinkData = array_intersect_key($linkData, array_flip($linkColumns)); // Filter $linkData to only include keys that are columns in the links table
 
@@ -453,12 +464,19 @@ class UserController extends Controller
         Link::where('id', $linkId)->delete();
 
         $directory = base_path("assets/favicon/icons");
-        $files = scandir($directory);
-        foreach($files as $file) {
-        if (strpos($file, $linkId.".") !== false) {
-        $pathinfo = pathinfo($file, PATHINFO_EXTENSION);}}
-        if (isset($pathinfo)) {
-        try{File::delete(base_path("assets/favicon/icons")."/".$linkId.".".$pathinfo);} catch (exception $e) {}
+        if (is_dir($directory)) {
+            $files = scandir($directory) ?: [];
+            foreach ($files as $file) {
+                if (strpos($file, $linkId.".") !== false) {
+                    $pathinfo = pathinfo($file, PATHINFO_EXTENSION);
+                }
+            }
+            if (isset($pathinfo)) {
+                try {
+                    File::delete($directory."/".$linkId.".".$pathinfo);
+                } catch (\Throwable $e) {
+                }
+            }
         }
 
         return redirect('/studio/links');
@@ -470,12 +488,19 @@ class UserController extends Controller
         $linkId = $request->id;
 
         $directory = base_path("assets/favicon/icons");
-        $files = scandir($directory);
-        foreach($files as $file) {
-        if (strpos($file, $linkId.".") !== false) {
-        $pathinfo = pathinfo($file, PATHINFO_EXTENSION);}}
-        if (isset($pathinfo)) {
-        try{File::delete(base_path("assets/favicon/icons")."/".$linkId.".".$pathinfo);} catch (exception $e) {}
+        if (is_dir($directory)) {
+            $files = scandir($directory) ?: [];
+            foreach ($files as $file) {
+                if (strpos($file, $linkId.".") !== false) {
+                    $pathinfo = pathinfo($file, PATHINFO_EXTENSION);
+                }
+            }
+            if (isset($pathinfo)) {
+                try {
+                    File::delete($directory."/".$linkId.".".$pathinfo);
+                } catch (\Throwable $e) {
+                }
+            }
         }
 
         return redirect('/studio/links');
@@ -568,9 +593,9 @@ class UserController extends Controller
         $custom_icon = $request->custom_icon;
         $custom_css = $request->custom_css;
 
-        if ($request->custom_css == "" and $request->custom_icon = !"") {
+        if ($custom_css == "" && $custom_icon != "") {
             Link::where('id', $linkId)->update(['custom_icon' => $custom_icon]);
-        } elseif ($request->custom_icon == "" and $request->custom_css = !"") {
+        } elseif ($custom_icon == "" && $custom_css != "") {
             Link::where('id', $linkId)->update(['custom_css' => $custom_css]);
         } else {
             Link::where('id', $linkId)->update([]);
@@ -1092,14 +1117,23 @@ class UserController extends Controller
 
         $request->validate($validationRules);
 
+        $existingIcons = DB::table('links')
+            ->where('user_id', Auth::id())
+            ->where('button_id', 94)
+            ->pluck('id', 'title');
+
         foreach ($inputKeys as $platform) {
             $link = $request->input($platform);
 
             if (!empty($link)) {
-                $iconId = $this->searchIcon($platform);
+                $iconId = $existingIcons[$platform] ?? null;
 
-                if (!is_null($iconId)) {
-                    $this->updateIcon($platform, $link);
+                if ($iconId !== null) {
+                    Link::where('id', $iconId)->update([
+                        'button_id' => 94,
+                        'link' => $link,
+                        'title' => $platform,
+                    ]);
                 } else {
                     $this->addIcon($platform, $link);
                 }
@@ -1125,15 +1159,19 @@ class UserController extends Controller
         $links->link = $link;
         $links->user_id = $userId;
         $links->title = $icon;
-        $links->button_id = '94';
-        $links->save();
-        $links->order = ($links->id - 1);
+        $links->button_id = 94;
+        $links->order = 0;
         $links->save();
     }
 
     private function updateIcon($icon, $link)
     {
-        Link::where('id', $this->searchIcon($icon))->update([
+        $iconId = $this->searchIcon($icon);
+        if ($iconId === null) {
+            return;
+        }
+
+        Link::where('id', $iconId)->update([
             'button_id' => 94,
             'link' => $link,
             'title' => $icon

@@ -12,6 +12,14 @@ class Impersonate
 {
     public function handle($request, Closure $next)
     {
+      $currentUser = Auth::user();
+      $hasActiveImpersonation = $request->session()->has('display_auth_nav')
+          || ($currentUser && $currentUser->role === 'admin' && is_numeric($currentUser->auth_as) && (int) $currentUser->auth_as > 0);
+
+      if (!$hasActiveImpersonation) {
+          return $next($request);
+      }
+
       if(Schema::hasColumn('users', 'auth_as')) {
         $adminUser = User::where('role', 'admin')
             ->whereNotNull('auth_as')

@@ -3,8 +3,13 @@
 if (!function_exists('localIcon')) {
     function localIcon($id)
     {
-        $directory = base_path("assets/favicon/icons");
-        $files = scandir($directory);
+        static $files = null;
+
+        if ($files === null) {
+            $directory = base_path("assets/favicon/icons");
+            $files = is_dir($directory) ? (scandir($directory) ?: []) : [];
+        }
+
         $pathinfo = "error.error";
         foreach ($files as $file) {
             if (strpos($file, $id . '.') !== false) {

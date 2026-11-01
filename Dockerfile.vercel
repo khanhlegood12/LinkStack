@@ -48,6 +48,7 @@ RUN setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/frankenphp \
     && chmod +x /usr/local/bin/vercel-entrypoint
 
 ENV PORT=80 \
+    VERCEL=1 \
     APP_ENV=production \
     APP_DEBUG=false \
     LOG_CHANNEL=stderr \

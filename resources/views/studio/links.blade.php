@@ -74,8 +74,9 @@ if (isset($_COOKIE['LinkCount'])) {
                                                 <p class="mt-5">{{__('messages.No Link Added')}}</p>
                                               </div>
                                         @else
+                                        @php $buttonsById = $links->count() > 0 ? Button::all()->keyBy('id') : collect(); @endphp
                                         @foreach($links as $link)
-                                        @php $button = Button::find($link->button_id); if(isset($button->name)){$buttonName = $button->name;}else{$buttonName = 0;} @endphp
+                                        @php $button = $buttonsById->get($link->button_id); if(isset($button->name)){$buttonName = $button->name;}else{$buttonName = 0;} @endphp
                                         @php if($buttonName == "default email"){$buttonName = "email";} if($buttonName == "default email_alt"){$buttonName = "email_alt";} @endphp
                                         @if($button && $button->name !== 'icon')
                                         <div class='row h-100 pb-0 mb-2 border rounded hvr-glow w-100' data-id="{{$link->id}}">
@@ -94,7 +95,7 @@ if (isset($_COOKIE['LinkCount'])) {
                                                     <div class='col-12 p-2' style="max-width:300px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;" title="{{ $link->title }}">
                                                         <span class='h6'>
                                                             @if($button->name == "custom_website")
-                                                            <span class="bg-soft-secondary" style="border: 1px solid #d0d4d7 !important;border-radius:5px;width:25px!important;height:25px!important;"><img style="margin-bottom:3px;margin-left:4px;margin-right:4px;max-width:15px;max-height:15px;" alt="button-icon" class="icon hvr-icon" src="@if(file_exists(base_path("assets/favicon/icons/").localIcon($link->id))){{url('assets/favicon/icons/'.localIcon($link->id))}}@else{{getFavIcon($link->id)}}@endif" onerror="this.onerror=null; this.src='{{asset('assets/linkstack/icons/website.svg')}}';"></span>
+                                                            <span class="bg-soft-secondary" style="border: 1px solid #d0d4d7 !important;border-radius:5px;width:25px!important;height:25px!important;"><img style="margin-bottom:3px;margin-left:4px;margin-right:4px;max-width:15px;max-height:15px;" alt="button-icon" class="icon hvr-icon" src="@if(file_exists(base_path("assets/favicon/icons/").localIcon($link->id))){{url('assets/favicon/icons/'.localIcon($link->id))}}@else{{getFavIcon($link->id, $link->link)}}@endif" onerror="this.onerror=null; this.src='{{asset('assets/linkstack/icons/website.svg')}}';"></span>
                                                             @elseif($button->name == "space")
                                                             <span class="bg-soft-secondary" style="border: 1px solid #d0d4d7 !important;border-radius:5px;width:25px!important;height:25px!important;"><i style="margin-left:2.83px;margin-right:-1px;color:#fff;" class='bi bi-distribute-vertical'>&nbsp;</i></span>
                                                             @elseif($button->name == "heading")
@@ -195,7 +196,7 @@ if (isset($_COOKIE['LinkCount'])) {
                                 </div>
                             
                                 <ul class="pagination justify-content-center">
-                                    {!! $links ?? ''->links() !!}
+                                    @if($links instanceof \Illuminate\Contracts\Pagination\Paginator){!! $links->links() !!}@endif
                                 </ul>
                             
                                 @if(count($links) > 3)<a class="btn btn-primary" href="{{ url('/studio/add-link') }}">{{__('messages.Add new Link')}}</a>@endif
@@ -205,7 +206,7 @@ if (isset($_COOKIE['LinkCount'])) {
                             <section class='pre-right text-gray-400 pre-side'>
                                 <h3 class="card-header"><i class="bi bi-window-fullscreen" style="font-style:normal!important;"> {{__('messages.Preview')}}</i></h3>
                                     <div class='card-body p-0 p-md-3'>
-                                            <center><iframe allowtransparency="true" id="frPreview1" style=" border-radius:0.25rem !important; background: #FFFFFF; min-height:600px; height:100%; max-width:500px !important;" class='w-100' src="{{ url('') }}/@<?= Auth::user()->littlelink_name ?>">{{__('messages.No compatible browser')}}</iframe></center>
+                                            <center><iframe loading="lazy" allowtransparency="true" id="frPreview1" style=" border-radius:0.25rem !important; background: #FFFFFF; min-height:600px; height:100%; max-width:500px !important;" class='w-100' src="{{ url('') }}/@<?= Auth::user()->littlelink_name ?>">{{__('messages.No compatible browser')}}</iframe></center>
                                      </div>
                             </section>
                             </div>
@@ -214,7 +215,7 @@ if (isset($_COOKIE['LinkCount'])) {
                             <section style="margin-left:-15px;margin-right:-15px;" style="width:100%!important;" class='pre-bottom text-gray-400 pre-side'>
                                 <h3 class="card-header"><i class="bi bi-window-fullscreen" style="font-style:normal!important;">{{__('messages.Preview')}}</i></h3>
                                     <div class='card-body p-0 p-md-3'>
-                                            <center><iframe allowtransparency="true" id="frPreview2" style=" border-radius:0.25rem !important; background: #FFFFFF; min-height:600px; height:100%; width:100% !important;" class='w-100' src="{{ url('') }}/@<?= Auth::user()->littlelink_name ?>">{{__('messages.No compatible browser')}}</iframe></center>
+                                            <center><iframe loading="lazy" allowtransparency="true" id="frPreview2" style=" border-radius:0.25rem !important; background: #FFFFFF; min-height:600px; height:100%; width:100% !important;" class='w-100' src="{{ url('') }}/@<?= Auth::user()->littlelink_name ?>">{{__('messages.No compatible browser')}}</iframe></center>
                                      </div>
                             </section><br>
                             
@@ -228,57 +229,44 @@ if (isset($_COOKIE['LinkCount'])) {
                                 <div class="form-group col-lg-8">
                             
                                     @php
+                                    $GLOBALS['__userSocialIcons'] = DB::table('links')
+                                        ->where('user_id', Auth::id())
+                                        ->where('button_id', 94)
+                                        ->select('id', 'title', 'link', 'click_number')
+                                        ->get()
+                                        ->keyBy('title');
+
                                     if (!function_exists('iconLink')) {
                                         function iconLink($icon) {
-                                            $iconLink = DB::table('links')
-                                                ->where('user_id', Auth::id())
-                                                ->where('title', $icon)
-                                                ->where('button_id', 94)
-                                                ->value('link');
-                                            if (is_null($iconLink)){
-                                                return false;
-                                            } else {
-                                                return $iconLink;
-                                            }
+                                            $row = $GLOBALS['__userSocialIcons'][$icon] ?? null;
+                                            return $row ? ($row->link ?? '') : '';
                                         }
                                     }
                                     
                                     if (!function_exists('searchIcon')) {
                                         function searchIcon($icon) {
-                                            $iconId = DB::table('links')
-                                                ->where('user_id', Auth::id())
-                                                ->where('title', $icon)
-                                                ->where('button_id', 94)
-                                                ->value('id');
-                                            if (is_null($iconId)){
-                                                return false;
-                                            } else {
-                                                return $iconId;
-                                            }
+                                            $row = $GLOBALS['__userSocialIcons'][$icon] ?? null;
+                                            return $row ? $row->id : null;
                                         }
                                     }
                                     
                                     if (!function_exists('iconclicks')) {
                                         function iconclicks($icon) {
-                                            $iconClicks = searchIcon($icon);
-                                            $iconClicks = DB::table('links')->where('id', $iconClicks)->value('click_number');
-                                            if (is_null($iconClicks)){
-                                                return 0;
-                                            } else {
-                                                return $iconClicks;
-                                            }
+                                            $row = $GLOBALS['__userSocialIcons'][$icon] ?? null;
+                                            return $row ? (int) ($row->click_number ?? 0) : 0;
                                         }
                                     }
                                     
                                     if (!function_exists('icon')) {
                                         function icon($name, $label) {
+                                            $iconId = searchIcon($name);
                                             echo '<div class="mb-3">
                                                     <label class="form-label">'.$label.'</label>
                                                     <span class="form-text" style="font-size: 90%; font-style: italic;">'.__('messages.Clicks').': '.iconclicks($name).'</span>
                                                     <div class="input-group">
                                                       <span class="input-group-text"><i class="fab fa-'.$name.'"></i></span>
-                                                      <input type="url" class="form-control" name="'.$name.'" value="'.iconLink($name).'" />
-                                                      '.(searchIcon($name) != NULL ? '<a href="'.route("deleteLink", searchIcon($name)).'" class="btn btn-danger"><i class="bi bi-trash-fill"></i></a>' : '').'
+                                                      <input type="url" class="form-control" name="'.$name.'" value="'.e(iconLink($name)).'" />
+                                                      '.($iconId !== null ? '<a href="'.route("deleteLink", $iconId).'" class="btn btn-danger"><i class="bi bi-trash-fill"></i></a>' : '').'
                                                     </div>
                                                   </div>';
                                         }
