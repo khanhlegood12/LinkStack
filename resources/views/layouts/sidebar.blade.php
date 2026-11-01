@@ -20,10 +20,12 @@ $usrhandl = Auth::user()->littlelink_name;
     @include('layouts.notifications')
 
     @php
-    // Update the 'updated_at' timestamp for the currently authenticated user
+    // Update the 'updated_at' timestamp for the currently authenticated user (throttled to avoid a DB write on every page view)
     if (auth()->check()) {
         $user = auth()->user();
-        $user->touch();
+        if ($user->updated_at === null || $user->updated_at->lt(now()->subMinutes(5))) {
+            $user->touch();
+        }
     }
     @endphp
 
