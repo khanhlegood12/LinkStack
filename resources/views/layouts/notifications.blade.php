@@ -51,7 +51,7 @@ function notificationCard($ntid, $icon, $heading, $subheading) {
 }
 
 //security check, checks if config files got compromised
-if(auth()->user()->role == 'admin' && !env('VERCEL')){
+if(auth()->user()->role == 'admin' && !env('VERCEL') && is_file(base_path('.env'))){
 
 if (!function_exists('getUrlSatusCodesb')) {
 function getUrlSatusCodesb($urlsb, $timeoutsb = 3)
